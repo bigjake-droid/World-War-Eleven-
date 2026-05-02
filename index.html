@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VINDEX: Tactical Command</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="ui-layer">
+        <div class="header-info">
+            <div id="phase-display">PHASE: DEPLOY</div>
+            <div class="resource-block">
+                <span id="reinforcement-display">RESERVES: 3</span><br>
+                <span id="dpoint-display" style="color: #00d4ff;">D-POINTS: 0</span>
+            </div>
+        </div>
+        
+        <div id="controls-container">
+            <div id="tech-panel" class="hidden">
+                <p>SELECT FRIENDLY NODE TO UPGRADE:</p>
+                <p>[ 5 ] TURRET: +1 TO HIGH DIE</p>
+                <p>[ 15 ] AEGIS: +1 ALL DICE</p>
+                <p>[ 20 ] IRON DOME: PRE-EMPTIVE KILL</p>
+            </div>
+            <div class="button-row">
+                <button id="tech-btn">> TECH TREE</button>
+                <button id="action-btn">> END PHASE</button>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="game-over" class="hidden">
+        <h1 id="end-title">NETWORK SECURED</h1>
+        <p id="end-desc">All hostile nodes purged.</p>
+        <button id="restart-btn">> REDEPLOY</button>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
