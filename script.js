@@ -7,6 +7,9 @@ const actionBtn = document.getElementById('action-btn');
 const techBtn = document.getElementById('tech-btn');
 const techPanel = document.getElementById('tech-panel');
 
+const bgMap = new Image();
+bgMap.src = 'Risk_game_board.svg.jpg';
+
 let width, height;
 let nodes = [];
 let phase = 'DEPLOY'; 
@@ -14,13 +17,12 @@ let reserves = 3;
 let dPoints = 0;
 let selectedNode = null;
 let activeStrikes = []; 
-let visualTaps = []; // Holds the sonar rings for debugging taps
+let visualTaps = []; 
 
 const COLOR_PLAYER = '#00d4ff'; 
 const COLOR_ENEMY = '#d32f2f';  
 
 function resize() {
-    // We remove DPR scaling to ensure 1:1 pixel mapping with your finger on the screen
     width = window.innerWidth; 
     height = window.innerHeight;
     canvas.width = width; 
@@ -29,26 +31,35 @@ function resize() {
 }
 
 function initMap() {
-    const cx = width / 2; const cy = height / 2;
-    const wOff = width * 0.35; const hOff = height * 0.25;
-
     nodes = [
-        { id: 0, x: cx - wOff, y: cy - hOff*0.8, owner: 0, troops: 5, defense: 0, links: [1, 3] }, 
-        { id: 1, x: cx + wOff*0.1, y: cy - hOff*1.2, owner: 1, troops: 3, defense: 0, links: [0, 2, 4] }, 
-        { id: 2, x: cx + wOff*0.8, y: cy - hOff, owner: 1, troops: 2, defense: 0, links: [1, 5] }, 
-        { id: 3, x: cx - wOff*0.9, y: cy + hOff*0.1, owner: 0, troops: 2, defense: 0, links: [0, 4, 6] }, 
-        { id: 4, x: cx + wOff*0.2, y: cy - hOff*0.1, owner: 1, troops: 4, defense: 0, links: [1, 3, 5, 7] }, 
-        { id: 5, x: cx + wOff*0.8, y: cy + hOff*0.2, owner: 1, troops: 3, defense: 0, links: [2, 4, 8] }, 
-        { id: 6, x: cx - wOff*0.6, y: cy + hOff*0.8, owner: 1, troops: 2, defense: 0, links: [3, 7] }, 
-        { id: 7, x: cx + wOff*0.1, y: cy + hOff*0.6, owner: 1, troops: 2, defense: 0, links: [4, 6, 8] }, 
-        { id: 8, x: cx + wOff*0.9, y: cy + hOff*0.9, owner: 1, troops: 2, defense: 0, links: [5, 7] }  
+        { id: 0, x: width * 0.20, y: height * 0.35, owner: 0, troops: 5, defense: 0, links: [1, 2, 3] }, // NA
+        { id: 1, x: width * 0.30, y: height * 0.70, owner: 1, troops: 2, defense: 0, links: [0, 3] },    // SA
+        { id: 2, x: width * 0.50, y: height * 0.30, owner: 1, troops: 3, defense: 0, links: [0, 3, 4] }, // EU
+        { id: 3, x: width * 0.55, y: height * 0.65, owner: 1, troops: 2, defense: 0, links: [1, 2, 4] }, // AF
+        { id: 4, x: width * 0.75, y: height * 0.35, owner: 1, troops: 4, defense: 0, links: [2, 3, 5] }, // AS
+        { id: 5, x: width * 0.85, y: height * 0.80, owner: 1, troops: 2, defense: 0, links: [4] }        // AU
     ];
     calculateReserves();
 }
 
+// ----------------------------------------------------------------
+// UPGRADED REINFORCEMENT ENGINE (REAL RISK MATH)
+// ----------------------------------------------------------------
 function calculateReserves() {
-    let owned = nodes.filter(n => n.owner === 0).length;
-    reserves = Math.max(3, Math.floor(owned / 3));
+    let ownedNodes = nodes.filter(n => n.owner === 0);
+    let baseReserves = Math.max(3, Math.floor(ownedNodes.length / 3));
+
+    let bonusReserves = 0;
+    ownedNodes.forEach(n => {
+        if (n.id === 0) bonusReserves += 5; // North America
+        if (n.id === 1) bonusReserves += 2; // South America
+        if (n.id === 2) bonusReserves += 5; // Europe
+        if (n.id === 3) bonusReserves += 3; // Africa
+        if (n.id === 4) bonusReserves += 7; // Asia
+        if (n.id === 5) bonusReserves += 2; // Australia
+    });
+
+    reserves = baseReserves + bonusReserves;
     dPoints += 5; 
     updateUI();
 }
@@ -102,25 +113,16 @@ function resolveCombat(attacker, defender) {
     }
 }
 
-// ----------------------------------------------------------------
-// NEW UNIFIED TOUCH ENGINE (Fixes the dead clicks)
-// ----------------------------------------------------------------
+// Touch Controls
 window.addEventListener('pointerdown', (e) => {
-    // Ignore clicks if they hit the UI buttons
     if (e.target.tagName === 'BUTTON') return;
-
     if (phase === 'AI_TURN' || phase === 'ANIMATING') return;
 
-    // Get exact screen coordinates
-    const x = e.clientX; 
-    const y = e.clientY;
-
-    // Trigger visual sonar ping
+    const x = e.clientX; const y = e.clientY;
     visualTaps.push({ x: x, y: y, radius: 5, alpha: 1.0 });
 
     let clickedNode = null;
-    // Increased hit radius from 35 to 55 for easier tapping
-    nodes.forEach(n => { if (Math.hypot(n.x - x, n.y - y) < 55) clickedNode = n; });
+    nodes.forEach(n => { if (Math.hypot(n.x - x, n.y - y) < 45) clickedNode = n; });
 
     if (!clickedNode) { selectedNode = null; return; }
 
@@ -153,7 +155,6 @@ window.addEventListener('pointerdown', (e) => {
     checkWinCondition();
 });
 
-// UI Button Listeners
 actionBtn.addEventListener('click', () => {
     if (phase === 'ATTACK' || phase === 'TECH') {
         selectedNode = null; phase = 'AI_TURN'; updateUI();
@@ -167,21 +168,11 @@ techBtn.addEventListener('click', () => {
     updateUI();
 });
 
-// --- RENDER ENGINE ---
-function drawHexagon(x, y, size, color, isFilled) {
-    ctx.beginPath();
-    for (let i = 0; i < 6; i++) {
-        const angle = (Math.PI / 3) * i;
-        ctx.lineTo(x + size * Math.cos(angle), y + size * Math.sin(angle));
-    }
-    ctx.closePath();
-    if (isFilled) { ctx.fillStyle = color; ctx.fill(); } 
-    else { ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke(); }
-}
-
 function drawTacticalIcon(x, y, troops, color, isMoving = false) {
-    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.fillStyle = 'transparent';
+    ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.save(); ctx.translate(x, y);
+
+    ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI*2); ctx.fill(); ctx.stroke();
 
     if (troops >= 15) { 
         ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(12, 10); ctx.lineTo(0, 4); ctx.lineTo(-12, 10); ctx.closePath(); ctx.stroke();
@@ -194,13 +185,14 @@ function drawTacticalIcon(x, y, troops, color, isMoving = false) {
     } else { 
         ctx.fillStyle = color;
         for(let i=0; i<troops; i++) {
-            ctx.beginPath(); ctx.arc(Math.cos((i/troops) * Math.PI*2) * 8, Math.sin((i/troops) * Math.PI*2) * 8, 2, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(Math.cos((i/troops) * Math.PI*2) * 8, Math.sin((i/troops) * Math.PI*2) * 8, 3, 0, Math.PI*2); ctx.fill();
         }
     }
     
     if (!isMoving) {
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Courier New'; ctx.textAlign = 'center';
-        ctx.fillText(`[${troops}]`, 0, 28);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Courier New'; ctx.textAlign = 'center';
+        ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+        ctx.fillText(`[${troops}]`, 0, 35);
     }
     ctx.restore();
 }
@@ -208,35 +200,35 @@ function drawTacticalIcon(x, y, troops, color, isMoving = false) {
 function render() {
     ctx.clearRect(0, 0, width, height);
 
-    // Draw Links
+    if (bgMap.complete) {
+        ctx.globalAlpha = 0.6;
+        ctx.drawImage(bgMap, 0, 0, width, height);
+        ctx.globalAlpha = 1.0;
+    }
+
     nodes.forEach(n => {
         n.links.forEach(targetId => {
             let target = nodes.find(t => t.id === targetId);
             ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.lineTo(target.x, target.y);
-            ctx.strokeStyle = 'rgba(74, 107, 140, 0.2)'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]); ctx.stroke();
+            ctx.setLineDash([]); 
         });
     });
 
-    // Draw Nodes
     nodes.forEach(n => {
         let color = n.owner === 0 ? COLOR_PLAYER : COLOR_ENEMY;
-        
-        drawHexagon(n.x, n.y, 35, 'rgba(10,15,20,0.8)', true);
-        drawHexagon(n.x, n.y, 35, color, false);
 
-        if (n.defense >= 1) drawHexagon(n.x, n.y, 42, 'rgba(212,175,55,0.5)', false);
-        if (n.defense >= 2) drawHexagon(n.x, n.y, 47, 'rgba(212,175,55,0.9)', false);
-        if (n.defense === 3) drawHexagon(n.x, n.y, 52, COLOR_PLAYER, false);
+        if (n.defense >= 1) { ctx.beginPath(); ctx.arc(n.x, n.y, 25, 0, Math.PI*2); ctx.strokeStyle = 'rgba(212,175,55,0.8)'; ctx.lineWidth = 2; ctx.stroke(); }
+        if (n.defense >= 2) { ctx.beginPath(); ctx.arc(n.x, n.y, 30, 0, Math.PI*2); ctx.strokeStyle = 'rgba(212,175,55,1)'; ctx.lineWidth = 3; ctx.stroke(); }
+        if (n.defense === 3) { ctx.beginPath(); ctx.arc(n.x, n.y, 35, 0, Math.PI*2); ctx.strokeStyle = COLOR_PLAYER; ctx.lineWidth = 4; ctx.stroke(); }
 
         if (n === selectedNode) {
-            ctx.shadowBlur = 20; ctx.shadowColor = COLOR_PLAYER;
-            drawHexagon(n.x, n.y, 38, COLOR_PLAYER, false);
-            ctx.shadowBlur = 0;
+            ctx.beginPath(); ctx.arc(n.x, n.y, 28, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0, 212, 255, 0.3)'; ctx.fill();
         }
         drawTacticalIcon(n.x, n.y, n.troops, color, false);
     });
 
-    // Draw Active Animations
     for (let i = activeStrikes.length - 1; i >= 0; i--) {
         let strike = activeStrikes[i];
         strike.progress += strike.speed;
@@ -249,19 +241,15 @@ function render() {
         } else {
             strike.currentX = strike.startX + (strike.endX - strike.startX) * strike.progress;
             strike.currentY = strike.startY + (strike.endY - strike.startY) * strike.progress;
-            
-            ctx.shadowBlur = 10; ctx.shadowColor = strike.color;
             drawTacticalIcon(strike.currentX, strike.currentY, strike.troopsSent, strike.color, true);
-            ctx.shadowBlur = 0;
         }
     }
 
-    // Draw Sonar Taps (Visual Debugging)
     for (let i = visualTaps.length - 1; i >= 0; i--) {
         let t = visualTaps[i];
         ctx.beginPath(); ctx.arc(t.x, t.y, t.radius, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(0, 212, 255, ${t.alpha})`; ctx.lineWidth = 2; ctx.stroke();
-        t.radius += 1.5; t.alpha -= 0.04;
+        ctx.strokeStyle = `rgba(255, 255, 255, ${t.alpha})`; ctx.lineWidth = 3; ctx.stroke();
+        t.radius += 2; t.alpha -= 0.05;
         if (t.alpha <= 0) visualTaps.splice(i, 1);
     }
 
@@ -286,11 +274,27 @@ function updateUI() {
     }
 }
 
+// ----------------------------------------------------------------
+// UPGRADED AI (Uses Continent Bonuses too)
+// ----------------------------------------------------------------
 function executeAITurn() {
     let aiNodes = nodes.filter(n => n.owner === 1);
     if(aiNodes.length === 0) return;
 
-    let aiReserves = Math.max(3, Math.floor(aiNodes.length / 3));
+    // AI gets the exact same Risk math
+    let aiBase = Math.max(3, Math.floor(aiNodes.length / 3));
+    let aiBonus = 0;
+    aiNodes.forEach(n => {
+        if (n.id === 0) aiBonus += 5;
+        if (n.id === 1) aiBonus += 2;
+        if (n.id === 2) aiBonus += 5;
+        if (n.id === 3) aiBonus += 3;
+        if (n.id === 4) aiBonus += 7;
+        if (n.id === 5) aiBonus += 2;
+    });
+    
+    let aiReserves = aiBase + aiBonus;
+
     for(let i=0; i<aiReserves; i++) {
         let target = aiNodes[Math.floor(Math.random() * aiNodes.length)];
         target.troops++;
