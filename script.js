@@ -9,7 +9,7 @@ const techPanel = document.getElementById('tech-panel');
 
 let width, height;
 let nodes = [];
-let phase = 'DEPLOY'; // State Machine: DEPLOY, ATTACK, ANIMATING, TECH, AI_TURN
+let phase = 'DEPLOY'; 
 let reserves = 3;
 let dPoints = 0;
 let selectedNode = null;
@@ -19,27 +19,34 @@ let radarAngle = 0;
 const COLOR_PLAYER = '#00d4ff'; 
 const COLOR_ENEMY = '#d32f2f';  
 
-// --- 1. INITIALIZATION & RESIZE ---
+// Fixes Mobile Tap Inaccuracy
 function resize() {
-    width = window.innerWidth; height = window.innerHeight;
-    canvas.width = width; canvas.height = height;
+    const dpr = window.devicePixelRatio || 1;
+    width = window.innerWidth; 
+    height = window.innerHeight;
+    canvas.width = width * dpr; 
+    canvas.height = height * dpr;
+    ctx.scale(dpr, dpr);
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
     initMap(); 
 }
 
 function initMap() {
     const cx = width / 2; const cy = height / 2;
-    const offset = Math.min(width, height) * 0.28;
+    const wOff = width * 0.35; const hOff = height * 0.25;
 
+    // Arranged geographically to match the world map
     nodes = [
-        { id: 0, x: cx - offset, y: cy - offset, owner: 0, troops: 5, defense: 0, links: [1, 3] }, 
-        { id: 1, x: cx, y: cy - offset * 1.2, owner: 1, troops: 3, defense: 0, links: [0, 2, 4] }, 
-        { id: 2, x: cx + offset, y: cy - offset, owner: 1, troops: 2, defense: 0, links: [1, 5] }, 
-        { id: 3, x: cx - offset * 1.2, y: cy, owner: 0, troops: 2, defense: 0, links: [0, 4, 6] }, 
-        { id: 4, x: cx, y: cy, owner: 1, troops: 4, defense: 0, links: [1, 3, 5, 7] }, 
-        { id: 5, x: cx + offset * 1.2, y: cy, owner: 1, troops: 3, defense: 0, links: [2, 4, 8] }, 
-        { id: 6, x: cx - offset, y: cy + offset, owner: 1, troops: 2, defense: 0, links: [3, 7] }, 
-        { id: 7, x: cx, y: cy + offset * 1.2, owner: 1, troops: 2, defense: 0, links: [4, 6, 8] }, 
-        { id: 8, x: cx + offset, y: cy + offset, owner: 1, troops: 2, defense: 0, links: [5, 7] }  
+        { id: 0, x: cx - wOff, y: cy - hOff*0.8, owner: 0, troops: 5, defense: 0, links: [1, 3] }, // NA
+        { id: 1, x: cx + wOff*0.1, y: cy - hOff*1.2, owner: 1, troops: 3, defense: 0, links: [0, 2, 4] }, // EU
+        { id: 2, x: cx + wOff*0.8, y: cy - hOff, owner: 1, troops: 2, defense: 0, links: [1, 5] }, // ASIA
+        { id: 3, x: cx - wOff*0.9, y: cy + hOff*0.1, owner: 0, troops: 2, defense: 0, links: [0, 4, 6] }, // Central AM
+        { id: 4, x: cx + wOff*0.2, y: cy - hOff*0.1, owner: 1, troops: 4, defense: 0, links: [1, 3, 5, 7] }, // Middle East
+        { id: 5, x: cx + wOff*0.8, y: cy + hOff*0.2, owner: 1, troops: 3, defense: 0, links: [2, 4, 8] }, // SE Asia
+        { id: 6, x: cx - wOff*0.6, y: cy + hOff*0.8, owner: 1, troops: 2, defense: 0, links: [3, 7] }, // SA
+        { id: 7, x: cx + wOff*0.1, y: cy + hOff*0.6, owner: 1, troops: 2, defense: 0, links: [4, 6, 8] }, // Africa
+        { id: 8, x: cx + wOff*0.9, y: cy + hOff*0.9, owner: 1, troops: 2, defense: 0, links: [5, 7] }  // AUS
     ];
     calculateReserves();
 }
@@ -51,33 +58,25 @@ function calculateReserves() {
     updateUI();
 }
 
-// --- 2. COMBAT & ANIMATION ENGINE ---
 function launchStrike(attacker, defender) {
     if (phase === 'ANIMATING') return;
-    
     let previousPhase = phase;
-    phase = 'ANIMATING'; // Lock controls during animation
+    phase = 'ANIMATING'; 
 
-    let dx = defender.x - attacker.x;
-    let dy = defender.y - attacker.y;
+    let dx = defender.x - attacker.x; let dy = defender.y - attacker.y;
     let distance = Math.hypot(dx, dy);
     
     activeStrikes.push({
-        attacker: attacker,
-        defender: defender,
-        startX: attacker.x, startY: attacker.y,
-        endX: defender.x, endY: defender.y,
-        currentX: attacker.x, currentY: attacker.y,
-        troopsSent: attacker.troops, 
-        progress: 0,
-        speed: 4 / distance, 
+        attacker: attacker, defender: defender,
+        startX: attacker.x, startY: attacker.y, endX: defender.x, endY: defender.y,
+        currentX: attacker.x, currentY: attacker.y, troopsSent: attacker.troops, 
+        progress: 0, speed: 4 / distance, 
         color: attacker.owner === 0 ? COLOR_PLAYER : COLOR_ENEMY,
         returnPhase: previousPhase
     });
 }
 
 function resolveCombat(attacker, defender) {
-    // Tier 3: Iron Dome check
     if (defender.defense === 3) {
         attacker.troops--;
         if(attacker.troops <= 1) return; 
@@ -85,45 +84,44 @@ function resolveCombat(attacker, defender) {
 
     let aDiceCount = Math.min(3, attacker.troops - 1);
     let dDiceCount = Math.min(2, defender.troops);
-
     let aRolls = [], dRolls = [];
+    
     for(let i=0; i<aDiceCount; i++) aRolls.push(Math.floor(Math.random() * 6) + 1);
     for(let i=0; i<dDiceCount; i++) dRolls.push(Math.floor(Math.random() * 6) + 1);
 
     aRolls.sort((a,b) => b-a); dRolls.sort((a,b) => b-a);
 
-    // Apply Defense Modifiers
-    if (defender.defense >= 1) dRolls[0] += 1; // Turret
-    if (defender.defense >= 2 && dRolls.length > 1) dRolls[1] += 1; // Aegis
+    if (defender.defense >= 1) dRolls[0] += 1; 
+    if (defender.defense >= 2 && dRolls.length > 1) dRolls[1] += 1; 
 
     let comparisons = Math.min(aRolls.length, dRolls.length);
     for(let i=0; i<comparisons; i++) {
-        if(aRolls[i] > dRolls[i]) defender.troops--;
-        else attacker.troops--; 
+        if(aRolls[i] > dRolls[i]) defender.troops--; else attacker.troops--; 
     }
 
-    // Territory Capture
     if(defender.troops <= 0) {
         defender.owner = attacker.owner;
         defender.troops = attacker.troops - 1; 
-        attacker.troops = 1;
-        defender.defense = 0; // Wipes out defense tech
+        attacker.troops = 1; defender.defense = 0; 
         selectedNode = null; 
     }
 }
 
-// --- 3. INPUT CONTROLS ---
-canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput(e.touches[0]); });
-canvas.addEventListener('mousedown', handleInput);
+// Unified Touch & Click Handler
+function getCoordinates(e) {
+    const rect = canvas.getBoundingClientRect();
+    if (e.touches && e.touches.length > 0) {
+        return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+    }
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
 
 function handleInput(e) {
     if (phase === 'AI_TURN' || phase === 'ANIMATING') return;
     
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left; const y = e.clientY - rect.top;
-
+    const coords = getCoordinates(e);
     let clickedNode = null;
-    nodes.forEach(n => { if (Math.hypot(n.x - x, n.y - y) < 35) clickedNode = n; });
+    nodes.forEach(n => { if (Math.hypot(n.x - coords.x, n.y - coords.y) < 40) clickedNode = n; });
 
     if (!clickedNode) { selectedNode = null; return; }
 
@@ -156,10 +154,12 @@ function handleInput(e) {
     checkWinCondition();
 }
 
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput(e); }, {passive: false});
+canvas.addEventListener('mousedown', handleInput);
+
 actionBtn.addEventListener('click', () => {
     if (phase === 'ATTACK' || phase === 'TECH') {
-        selectedNode = null; phase = 'AI_TURN';
-        updateUI();
+        selectedNode = null; phase = 'AI_TURN'; updateUI();
         setTimeout(executeAITurn, 800);
     }
 });
@@ -170,15 +170,11 @@ techBtn.addEventListener('click', () => {
     updateUI();
 });
 
-// --- 4. RENDER GRAPHICS ---
 function drawHexagon(x, y, size, color, isFilled) {
     ctx.beginPath();
     for (let i = 0; i < 6; i++) {
         const angle = (Math.PI / 3) * i;
-        const hx = x + size * Math.cos(angle);
-        const hy = y + size * Math.sin(angle);
-        if (i === 0) ctx.moveTo(hx, hy);
-        else ctx.lineTo(hx, hy);
+        ctx.lineTo(x + size * Math.cos(angle), y + size * Math.sin(angle));
     }
     ctx.closePath();
     if (isFilled) { ctx.fillStyle = color; ctx.fill(); } 
@@ -189,20 +185,18 @@ function drawTacticalIcon(x, y, troops, color, isMoving = false) {
     ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.fillStyle = 'transparent';
     ctx.save(); ctx.translate(x, y);
 
-    if (troops >= 15) { // F-35
+    if (troops >= 15) { 
         ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(12, 10); ctx.lineTo(0, 4); ctx.lineTo(-12, 10); ctx.closePath(); ctx.stroke();
-    } else if (troops >= 10) { // Stryker
+    } else if (troops >= 10) { 
         ctx.beginPath(); ctx.rect(-10, -8, 20, 16); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -14); ctx.stroke(); 
-    } else if (troops >= 5) { // Blackhawk
+    } else if (troops >= 5) { 
         ctx.beginPath(); ctx.ellipse(0, 0, 12, 6, 0, 0, Math.PI * 2); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(-14, -4); ctx.lineTo(14, 4); ctx.stroke(); 
-    } else { // Marines
+    } else { 
         ctx.fillStyle = color;
         for(let i=0; i<troops; i++) {
-            let dx = Math.cos((i/troops) * Math.PI*2) * 8;
-            let dy = Math.sin((i/troops) * Math.PI*2) * 8;
-            ctx.beginPath(); ctx.arc(dx, dy, 2, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(Math.cos((i/troops) * Math.PI*2) * 8, Math.sin((i/troops) * Math.PI*2) * 8, 2, 0, Math.PI*2); ctx.fill();
         }
     }
     
@@ -214,15 +208,13 @@ function drawTacticalIcon(x, y, troops, color, isMoving = false) {
 }
 
 function render() {
-    ctx.fillStyle = '#020304'; ctx.fillRect(0, 0, width, height);
+    ctx.clearRect(0, 0, width, height); // Map is handled by CSS underneath now
 
-    // Radar Sweep
     radarAngle += 0.01;
     ctx.save(); ctx.translate(width/2, height/2); ctx.rotate(radarAngle);
     ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0, Math.max(width,height), 0, 0.2);
-    ctx.fillStyle = 'rgba(0, 212, 255, 0.02)'; ctx.fill(); ctx.restore();
+    ctx.fillStyle = 'rgba(0, 212, 255, 0.03)'; ctx.fill(); ctx.restore();
 
-    // Draw Links
     nodes.forEach(n => {
         n.links.forEach(targetId => {
             let target = nodes.find(t => t.id === targetId);
@@ -231,7 +223,6 @@ function render() {
         });
     });
 
-    // Draw Nodes
     nodes.forEach(n => {
         let color = n.owner === 0 ? COLOR_PLAYER : COLOR_ENEMY;
         
@@ -250,7 +241,6 @@ function render() {
         drawTacticalIcon(n.x, n.y, n.troops, color, false);
     });
 
-    // Draw Strike Animations
     for (let i = activeStrikes.length - 1; i >= 0; i--) {
         let strike = activeStrikes[i];
         strike.progress += strike.speed;
@@ -259,8 +249,7 @@ function render() {
             resolveCombat(strike.attacker, strike.defender);
             phase = strike.returnPhase;
             activeStrikes.splice(i, 1);
-            checkWinCondition();
-            updateUI();
+            checkWinCondition(); updateUI();
         } else {
             strike.currentX = strike.startX + (strike.endX - strike.startX) * strike.progress;
             strike.currentY = strike.startY + (strike.endY - strike.startY) * strike.progress;
@@ -273,12 +262,10 @@ function render() {
     requestAnimationFrame(render);
 }
 
-// --- 5. GAME LOGIC & UI ---
 function updateUI() {
     uiPhase.textContent = `PHASE: ${phase}`;
     uiReserves.textContent = phase === 'DEPLOY' ? `RESERVES: ${reserves}` : '';
     uiDPoints.textContent = `D-POINTS: ${dPoints}`;
-    
     techPanel.classList.add('hidden');
     
     if(phase === 'DEPLOY') {
@@ -308,7 +295,7 @@ function executeAITurn() {
         if (attacker.troops > 4 && !hasAttacked) { 
             attacker.links.forEach(targetId => {
                 let defender = nodes.find(n => n.id === targetId);
-                if (defender.owner === 0 && attacker.troops > defender.troops) {
+                if (defender.owner === 0 && attacker.troops > defender.troops && !hasAttacked) {
                     launchStrike(attacker, defender);
                     hasAttacked = true;
                 }
@@ -317,9 +304,9 @@ function executeAITurn() {
     });
 
     if (!hasAttacked) {
-        phase = 'DEPLOY';
-        calculateReserves();
+        phase = 'DEPLOY'; calculateReserves();
     } else {
+        // AI animation will switch it back to deploy when finished
         activeStrikes[0].returnPhase = 'DEPLOY';
         setTimeout(calculateReserves, 1000); 
     }
@@ -339,11 +326,9 @@ function checkWinCondition() {
 
 document.getElementById('restart-btn').addEventListener('click', () => {
     document.getElementById('game-over').classList.add('hidden');
-    phase = 'DEPLOY'; dPoints = 0; activeStrikes = [];
-    initMap();
+    phase = 'DEPLOY'; dPoints = 0; activeStrikes = []; initMap();
 });
 
-// Boot Sequence
 window.addEventListener('resize', resize);
 resize();
 render();
