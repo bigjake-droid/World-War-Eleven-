@@ -1,48 +1,45 @@
-/* Base Reset & Variables */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
     background-color: #020304;
     color: #8c9b9d;
     font-family: 'Courier New', Courier, monospace;
-    overflow: hidden; /* Stops scrolling */
-    touch-action: none; /* Stops pinch-to-zoom on mobile */
+    overflow: hidden; 
+    touch-action: none; 
     user-select: none;
     position: relative;
 }
 
-/* Holographic Scanline Effect */
+/* CRT Scanlines */
 body::after {
-    content: " "; 
-    display: block; 
-    position: absolute; 
-    top: 0; left: 0; bottom: 0; right: 0;
+    content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
     background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
-    z-index: 5; 
-    background-size: 100% 2px, 3px 100%; 
-    pointer-events: none; /* Lets you tap through the scanlines */
+    z-index: 5; background-size: 100% 2px, 3px 100%; pointer-events: none;
 }
 
-/* HUD Overlay Styling */
+/* Modern World Map */
+#world-map {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    /* Pulls an open-source blank map and uses CSS to turn it into a hologram */
+    background-image: url('https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg');
+    background-size: cover; background-position: center;
+    opacity: 0.15; 
+    filter: invert(1) hue-rotate(180deg) sepia(1) saturate(500%) brightness(0.6);
+    z-index: 0; pointer-events: none;
+}
+
 #ui-layer {
-    position: absolute; 
-    top: 0; left: 0; width: 100%; height: 100%;
-    pointer-events: none; /* Lets taps pass through to the canvas */
-    display: flex; 
-    flex-direction: column; 
-    justify-content: space-between;
-    padding: 20px; 
-    z-index: 10;
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
+    padding: 20px; z-index: 10;
 }
 
 .header-info {
-    display: flex; justify-content: space-between; 
-    font-size: 1rem; font-weight: bold;
+    display: flex; justify-content: space-between; font-size: 1rem; font-weight: bold;
     color: #00d4ff; text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
 }
 
 .resource-block { text-align: right; }
-
 #controls-container { display: flex; flex-direction: column; gap: 10px; }
 
 #tech-panel {
@@ -59,14 +56,12 @@ button {
     font-weight: bold; cursor: pointer; text-transform: uppercase; transition: 0.2s;
 }
 
-button:active { transform: scale(0.98); }
+button:active { transform: scale(0.98); background: #4a6b8c; color: #000; }
 #action-btn { border-color: #d32f2f; color: #d32f2f; }
 #tech-btn { border-color: #00d4ff; color: #00d4ff; }
 
-/* Canvas Styling */
 #gameCanvas { display: block; width: 100vw; height: 100vh; position: relative; z-index: 1; }
 
-/* End Game Screen */
 #game-over {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     background: rgba(2, 3, 4, 0.95); display: flex; flex-direction: column;
