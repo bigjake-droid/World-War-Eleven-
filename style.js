@@ -9,29 +9,27 @@ const techPanel = document.getElementById('tech-panel');
 
 let width, height;
 let nodes = [];
-let phase = 'DEPLOY'; // DEPLOY, ATTACK, TECH, AI_TURN
+let phase = 'DEPLOY'; // State Machine: DEPLOY, ATTACK, ANIMATING, TECH, AI_TURN
 let reserves = 3;
 let dPoints = 0;
 let selectedNode = null;
+let activeStrikes = []; 
+let radarAngle = 0; 
 
 const COLOR_PLAYER = '#00d4ff'; 
 const COLOR_ENEMY = '#d32f2f';  
 
+// --- 1. INITIALIZATION & RESIZE ---
 function resize() {
-    width = window.innerWidth;
-    height = window.innerHeight;
-    canvas.width = width;
-    canvas.height = height;
+    width = window.innerWidth; height = window.innerHeight;
+    canvas.width = width; canvas.height = height;
     initMap(); 
 }
 
-// 1. Build Network & Defense Tech logic
 function initMap() {
-    const cx = width / 2;
-    const cy = height / 2;
-    const offset = Math.min(width, height) * 0.25;
+    const cx = width / 2; const cy = height / 2;
+    const offset = Math.min(width, height) * 0.28;
 
-    // Node structure: added defense property (0=None, 1=Turret, 2=Aegis, 3=Iron Dome)
     nodes = [
         { id: 0, x: cx - offset, y: cy - offset, owner: 0, troops: 5, defense: 0, links: [1, 3] }, 
         { id: 1, x: cx, y: cy - offset * 1.2, owner: 1, troops: 3, defense: 0, links: [0, 2, 4] }, 
@@ -44,22 +42,45 @@ function initMap() {
         { id: 8, x: cx + offset, y: cy + offset, owner: 1, troops: 2, defense: 0, links: [5, 7] }  
     ];
     calculateReserves();
-    drawMap();
 }
 
 function calculateReserves() {
     let owned = nodes.filter(n => n.owner === 0).length;
     reserves = Math.max(3, Math.floor(owned / 3));
-    dPoints += 5; // Gain 5 D-Points every turn
+    dPoints += 5; 
     updateUI();
 }
 
-// 2. Advanced Combat Engine
+// --- 2. COMBAT & ANIMATION ENGINE ---
+function launchStrike(attacker, defender) {
+    if (phase === 'ANIMATING') return;
+    
+    let previousPhase = phase;
+    phase = 'ANIMATING'; // Lock controls during animation
+
+    let dx = defender.x - attacker.x;
+    let dy = defender.y - attacker.y;
+    let distance = Math.hypot(dx, dy);
+    
+    activeStrikes.push({
+        attacker: attacker,
+        defender: defender,
+        startX: attacker.x, startY: attacker.y,
+        endX: defender.x, endY: defender.y,
+        currentX: attacker.x, currentY: attacker.y,
+        troopsSent: attacker.troops, 
+        progress: 0,
+        speed: 4 / distance, 
+        color: attacker.owner === 0 ? COLOR_PLAYER : COLOR_ENEMY,
+        returnPhase: previousPhase
+    });
+}
+
 function resolveCombat(attacker, defender) {
-    // Iron Dome (Tier 3) Pre-emptive kill
+    // Tier 3: Iron Dome check
     if (defender.defense === 3) {
         attacker.troops--;
-        if(attacker.troops <= 1) return; // Attack breaks
+        if(attacker.troops <= 1) return; 
     }
 
     let aDiceCount = Math.min(3, attacker.troops - 1);
@@ -69,12 +90,11 @@ function resolveCombat(attacker, defender) {
     for(let i=0; i<aDiceCount; i++) aRolls.push(Math.floor(Math.random() * 6) + 1);
     for(let i=0; i<dDiceCount; i++) dRolls.push(Math.floor(Math.random() * 6) + 1);
 
-    aRolls.sort((a,b) => b-a);
-    dRolls.sort((a,b) => b-a);
+    aRolls.sort((a,b) => b-a); dRolls.sort((a,b) => b-a);
 
-    // Apply Defense Tech Modifiers
-    if (defender.defense >= 1) dRolls[0] += 1; // Turret: +1 to highest die
-    if (defender.defense >= 2 && dRolls.length > 1) dRolls[1] += 1; // Aegis: +1 to second die
+    // Apply Defense Modifiers
+    if (defender.defense >= 1) dRolls[0] += 1; // Turret
+    if (defender.defense >= 2 && dRolls.length > 1) dRolls[1] += 1; // Aegis
 
     let comparisons = Math.min(aRolls.length, dRolls.length);
     for(let i=0; i<comparisons; i++) {
@@ -82,39 +102,34 @@ function resolveCombat(attacker, defender) {
         else attacker.troops--; 
     }
 
+    // Territory Capture
     if(defender.troops <= 0) {
         defender.owner = attacker.owner;
         defender.troops = attacker.troops - 1; 
         attacker.troops = 1;
-        defender.defense = 0; // Defense systems are destroyed upon capture
+        defender.defense = 0; // Wipes out defense tech
         selectedNode = null; 
     }
 }
 
-// 3. Controls & UI
+// --- 3. INPUT CONTROLS ---
 canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput(e.touches[0]); });
 canvas.addEventListener('mousedown', handleInput);
 
 function handleInput(e) {
-    if (phase === 'AI_TURN') return;
+    if (phase === 'AI_TURN' || phase === 'ANIMATING') return;
     
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = e.clientX - rect.left; const y = e.clientY - rect.top;
 
     let clickedNode = null;
-    nodes.forEach(n => { if (Math.hypot(n.x - x, n.y - y) < 30) clickedNode = n; });
+    nodes.forEach(n => { if (Math.hypot(n.x - x, n.y - y) < 35) clickedNode = n; });
 
-    if (!clickedNode) {
-        selectedNode = null;
-        drawMap();
-        return;
-    }
+    if (!clickedNode) { selectedNode = null; return; }
 
     if (phase === 'DEPLOY') {
         if (clickedNode.owner === 0 && reserves > 0) {
-            clickedNode.troops++;
-            reserves--;
+            clickedNode.troops++; reserves--;
             if (reserves === 0) phase = 'ATTACK';
             updateUI();
         }
@@ -125,31 +140,27 @@ function handleInput(e) {
         } 
         else if (selectedNode && clickedNode.owner !== 0) {
             if (selectedNode.links.includes(clickedNode.id)) {
-                resolveCombat(selectedNode, clickedNode);
+                launchStrike(selectedNode, clickedNode);
                 if(selectedNode && selectedNode.troops === 1) selectedNode = null; 
             }
         }
     }
     else if (phase === 'TECH') {
         if (clickedNode.owner === 0) {
-            if (clickedNode.defense === 0 && dPoints >= 5) { clickedNode.defense = 1; dPoints -= 5; } // Turret
-            else if (clickedNode.defense === 1 && dPoints >= 15) { clickedNode.defense = 2; dPoints -= 15; } // Aegis
-            else if (clickedNode.defense === 2 && dPoints >= 20) { clickedNode.defense = 3; dPoints -= 20; } // Iron Dome
+            if (clickedNode.defense === 0 && dPoints >= 5) { clickedNode.defense = 1; dPoints -= 5; } 
+            else if (clickedNode.defense === 1 && dPoints >= 15) { clickedNode.defense = 2; dPoints -= 15; } 
+            else if (clickedNode.defense === 2 && dPoints >= 20) { clickedNode.defense = 3; dPoints -= 20; } 
             updateUI();
         }
     }
-    
     checkWinCondition();
-    drawMap();
 }
 
 actionBtn.addEventListener('click', () => {
     if (phase === 'ATTACK' || phase === 'TECH') {
-        selectedNode = null;
-        phase = 'AI_TURN';
+        selectedNode = null; phase = 'AI_TURN';
         updateUI();
-        drawMap();
-        setTimeout(executeAITurn, 1000);
+        setTimeout(executeAITurn, 800);
     }
 });
 
@@ -157,76 +168,112 @@ techBtn.addEventListener('click', () => {
     if (phase === 'ATTACK') { phase = 'TECH'; }
     else if (phase === 'TECH') { phase = 'ATTACK'; selectedNode = null;}
     updateUI();
-    drawMap();
 });
 
-// 4. Vector Graphics & Render
-function drawTacticalIcon(x, y, troops, color) {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.fillStyle = 'transparent';
+// --- 4. RENDER GRAPHICS ---
+function drawHexagon(x, y, size, color, isFilled) {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i;
+        const hx = x + size * Math.cos(angle);
+        const hy = y + size * Math.sin(angle);
+        if (i === 0) ctx.moveTo(hx, hy);
+        else ctx.lineTo(hx, hy);
+    }
+    ctx.closePath();
+    if (isFilled) { ctx.fillStyle = color; ctx.fill(); } 
+    else { ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke(); }
+}
 
-    if (troops >= 15) {
-        // F-35 (Swept Chevron)
-        ctx.beginPath(); ctx.moveTo(x, y - 12); ctx.lineTo(x + 12, y + 10); 
-        ctx.lineTo(x, y + 4); ctx.lineTo(x - 12, y + 10); ctx.closePath(); ctx.stroke();
-    } else if (troops >= 10) {
-        // Stryker (Armor Box)
-        ctx.beginPath(); ctx.rect(x - 10, y - 8, 20, 16); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 14); ctx.stroke(); // Gun
-    } else if (troops >= 5) {
-        // Blackhawk (Rotor Oval)
-        ctx.beginPath(); ctx.ellipse(x, y, 12, 6, 0, 0, Math.PI * 2); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(x - 14, y - 4); ctx.lineTo(x + 14, y + 4); ctx.stroke(); // Blades
-    } else {
-        // Marines (Dots based on count)
+function drawTacticalIcon(x, y, troops, color, isMoving = false) {
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.fillStyle = 'transparent';
+    ctx.save(); ctx.translate(x, y);
+
+    if (troops >= 15) { // F-35
+        ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(12, 10); ctx.lineTo(0, 4); ctx.lineTo(-12, 10); ctx.closePath(); ctx.stroke();
+    } else if (troops >= 10) { // Stryker
+        ctx.beginPath(); ctx.rect(-10, -8, 20, 16); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -14); ctx.stroke(); 
+    } else if (troops >= 5) { // Blackhawk
+        ctx.beginPath(); ctx.ellipse(0, 0, 12, 6, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-14, -4); ctx.lineTo(14, 4); ctx.stroke(); 
+    } else { // Marines
         ctx.fillStyle = color;
         for(let i=0; i<troops; i++) {
-            let dx = x + Math.cos((i/troops) * Math.PI*2) * 8;
-            let dy = y + Math.sin((i/troops) * Math.PI*2) * 8;
+            let dx = Math.cos((i/troops) * Math.PI*2) * 8;
+            let dy = Math.sin((i/troops) * Math.PI*2) * 8;
             ctx.beginPath(); ctx.arc(dx, dy, 2, 0, Math.PI*2); ctx.fill();
         }
     }
     
-    // Always draw the number underneath
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 12px Courier New';
-    ctx.textAlign = 'center';
-    ctx.fillText(`[${troops}]`, x, y + 25);
+    if (!isMoving) {
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Courier New'; ctx.textAlign = 'center';
+        ctx.fillText(`[${troops}]`, 0, 28);
+    }
+    ctx.restore();
 }
 
-function drawMap() {
-    ctx.fillStyle = '#030507';
-    ctx.fillRect(0, 0, width, height);
+function render() {
+    ctx.fillStyle = '#020304'; ctx.fillRect(0, 0, width, height);
 
-    ctx.lineWidth = 2;
+    // Radar Sweep
+    radarAngle += 0.01;
+    ctx.save(); ctx.translate(width/2, height/2); ctx.rotate(radarAngle);
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0, Math.max(width,height), 0, 0.2);
+    ctx.fillStyle = 'rgba(0, 212, 255, 0.02)'; ctx.fill(); ctx.restore();
+
+    // Draw Links
     nodes.forEach(n => {
         n.links.forEach(targetId => {
             let target = nodes.find(t => t.id === targetId);
             ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.lineTo(target.x, target.y);
-            ctx.strokeStyle = 'rgba(74, 107, 140, 0.3)'; ctx.stroke();
+            ctx.strokeStyle = 'rgba(74, 107, 140, 0.2)'; ctx.lineWidth = 2; ctx.stroke();
         });
     });
 
+    // Draw Nodes
     nodes.forEach(n => {
         let color = n.owner === 0 ? COLOR_PLAYER : COLOR_ENEMY;
         
-        // Defense Rings
-        if (n.defense >= 1) { ctx.beginPath(); ctx.arc(n.x, n.y, 35, 0, Math.PI*2); ctx.strokeStyle = 'rgba(212,175,55,0.4)'; ctx.stroke(); }
-        if (n.defense >= 2) { ctx.beginPath(); ctx.arc(n.x, n.y, 40, 0, Math.PI*2); ctx.strokeStyle = 'rgba(212,175,55,0.8)'; ctx.stroke(); }
-        if (n.defense === 3) { ctx.beginPath(); ctx.arc(n.x, n.y, 45, 0, Math.PI*2); ctx.strokeStyle = '#00d4ff'; ctx.stroke(); }
+        drawHexagon(n.x, n.y, 35, 'rgba(10,15,20,0.8)', true);
+        drawHexagon(n.x, n.y, 35, color, false);
 
-        // Selection Highlight
+        if (n.defense >= 1) drawHexagon(n.x, n.y, 42, 'rgba(212,175,55,0.5)', false);
+        if (n.defense >= 2) drawHexagon(n.x, n.y, 47, 'rgba(212,175,55,0.9)', false);
+        if (n.defense === 3) drawHexagon(n.x, n.y, 52, COLOR_PLAYER, false);
+
         if (n === selectedNode) {
-            ctx.beginPath(); ctx.arc(n.x, n.y, 25, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(212, 175, 55, 0.3)'; ctx.fill();
-            ctx.strokeStyle = '#d4af37'; ctx.stroke();
+            ctx.shadowBlur = 20; ctx.shadowColor = COLOR_PLAYER;
+            drawHexagon(n.x, n.y, 38, COLOR_PLAYER, false);
+            ctx.shadowBlur = 0;
         }
-
-        drawTacticalIcon(n.x, n.y, n.troops, color);
+        drawTacticalIcon(n.x, n.y, n.troops, color, false);
     });
+
+    // Draw Strike Animations
+    for (let i = activeStrikes.length - 1; i >= 0; i--) {
+        let strike = activeStrikes[i];
+        strike.progress += strike.speed;
+        
+        if (strike.progress >= 1) {
+            resolveCombat(strike.attacker, strike.defender);
+            phase = strike.returnPhase;
+            activeStrikes.splice(i, 1);
+            checkWinCondition();
+            updateUI();
+        } else {
+            strike.currentX = strike.startX + (strike.endX - strike.startX) * strike.progress;
+            strike.currentY = strike.startY + (strike.endY - strike.startY) * strike.progress;
+            
+            ctx.shadowBlur = 10; ctx.shadowColor = strike.color;
+            drawTacticalIcon(strike.currentX, strike.currentY, strike.troopsSent, strike.color, true);
+            ctx.shadowBlur = 0;
+        }
+    }
+    requestAnimationFrame(render);
 }
 
+// --- 5. GAME LOGIC & UI ---
 function updateUI() {
     uiPhase.textContent = `PHASE: ${phase}`;
     uiReserves.textContent = phase === 'DEPLOY' ? `RESERVES: ${reserves}` : '';
@@ -237,7 +284,7 @@ function updateUI() {
     if(phase === 'DEPLOY') {
         actionBtn.style.display = 'none'; techBtn.style.display = 'none';
         uiPhase.style.color = '#d4af37';
-    } else if (phase === 'ATTACK') {
+    } else if (phase === 'ATTACK' || phase === 'ANIMATING') {
         actionBtn.style.display = 'block'; techBtn.style.display = 'block';
         uiPhase.style.color = '#d32f2f'; techBtn.textContent = "> TECH TREE";
     } else if (phase === 'TECH') {
@@ -246,7 +293,6 @@ function updateUI() {
     }
 }
 
-// 5. AI Turn
 function executeAITurn() {
     let aiNodes = nodes.filter(n => n.owner === 1);
     if(aiNodes.length === 0) return;
@@ -257,23 +303,25 @@ function executeAITurn() {
         target.troops++;
     }
 
+    let hasAttacked = false;
     aiNodes.forEach(attacker => {
-        if (attacker.troops > 4) {
+        if (attacker.troops > 4 && !hasAttacked) { 
             attacker.links.forEach(targetId => {
                 let defender = nodes.find(n => n.id === targetId);
                 if (defender.owner === 0 && attacker.troops > defender.troops) {
-                    resolveCombat(attacker, defender);
+                    launchStrike(attacker, defender);
+                    hasAttacked = true;
                 }
             });
         }
     });
 
-    checkWinCondition();
-    
-    if(phase === 'AI_TURN') {
+    if (!hasAttacked) {
         phase = 'DEPLOY';
         calculateReserves();
-        drawMap();
+    } else {
+        activeStrikes[0].returnPhase = 'DEPLOY';
+        setTimeout(calculateReserves, 1000); 
     }
 }
 
@@ -291,9 +339,11 @@ function checkWinCondition() {
 
 document.getElementById('restart-btn').addEventListener('click', () => {
     document.getElementById('game-over').classList.add('hidden');
-    phase = 'DEPLOY'; dPoints = 0;
+    phase = 'DEPLOY'; dPoints = 0; activeStrikes = [];
     initMap();
 });
 
+// Boot Sequence
 window.addEventListener('resize', resize);
 resize();
+render();
