@@ -14,21 +14,17 @@ let reserves = 3;
 let dPoints = 0;
 let selectedNode = null;
 let activeStrikes = []; 
-let radarAngle = 0; 
+let visualTaps = []; // Holds the sonar rings for debugging taps
 
 const COLOR_PLAYER = '#00d4ff'; 
 const COLOR_ENEMY = '#d32f2f';  
 
-// Fixes Mobile Tap Inaccuracy
 function resize() {
-    const dpr = window.devicePixelRatio || 1;
+    // We remove DPR scaling to ensure 1:1 pixel mapping with your finger on the screen
     width = window.innerWidth; 
     height = window.innerHeight;
-    canvas.width = width * dpr; 
-    canvas.height = height * dpr;
-    ctx.scale(dpr, dpr);
-    canvas.style.width = width + 'px';
-    canvas.style.height = height + 'px';
+    canvas.width = width; 
+    canvas.height = height;
     initMap(); 
 }
 
@@ -36,17 +32,16 @@ function initMap() {
     const cx = width / 2; const cy = height / 2;
     const wOff = width * 0.35; const hOff = height * 0.25;
 
-    // Arranged geographically to match the world map
     nodes = [
-        { id: 0, x: cx - wOff, y: cy - hOff*0.8, owner: 0, troops: 5, defense: 0, links: [1, 3] }, // NA
-        { id: 1, x: cx + wOff*0.1, y: cy - hOff*1.2, owner: 1, troops: 3, defense: 0, links: [0, 2, 4] }, // EU
-        { id: 2, x: cx + wOff*0.8, y: cy - hOff, owner: 1, troops: 2, defense: 0, links: [1, 5] }, // ASIA
-        { id: 3, x: cx - wOff*0.9, y: cy + hOff*0.1, owner: 0, troops: 2, defense: 0, links: [0, 4, 6] }, // Central AM
-        { id: 4, x: cx + wOff*0.2, y: cy - hOff*0.1, owner: 1, troops: 4, defense: 0, links: [1, 3, 5, 7] }, // Middle East
-        { id: 5, x: cx + wOff*0.8, y: cy + hOff*0.2, owner: 1, troops: 3, defense: 0, links: [2, 4, 8] }, // SE Asia
-        { id: 6, x: cx - wOff*0.6, y: cy + hOff*0.8, owner: 1, troops: 2, defense: 0, links: [3, 7] }, // SA
-        { id: 7, x: cx + wOff*0.1, y: cy + hOff*0.6, owner: 1, troops: 2, defense: 0, links: [4, 6, 8] }, // Africa
-        { id: 8, x: cx + wOff*0.9, y: cy + hOff*0.9, owner: 1, troops: 2, defense: 0, links: [5, 7] }  // AUS
+        { id: 0, x: cx - wOff, y: cy - hOff*0.8, owner: 0, troops: 5, defense: 0, links: [1, 3] }, 
+        { id: 1, x: cx + wOff*0.1, y: cy - hOff*1.2, owner: 1, troops: 3, defense: 0, links: [0, 2, 4] }, 
+        { id: 2, x: cx + wOff*0.8, y: cy - hOff, owner: 1, troops: 2, defense: 0, links: [1, 5] }, 
+        { id: 3, x: cx - wOff*0.9, y: cy + hOff*0.1, owner: 0, troops: 2, defense: 0, links: [0, 4, 6] }, 
+        { id: 4, x: cx + wOff*0.2, y: cy - hOff*0.1, owner: 1, troops: 4, defense: 0, links: [1, 3, 5, 7] }, 
+        { id: 5, x: cx + wOff*0.8, y: cy + hOff*0.2, owner: 1, troops: 3, defense: 0, links: [2, 4, 8] }, 
+        { id: 6, x: cx - wOff*0.6, y: cy + hOff*0.8, owner: 1, troops: 2, defense: 0, links: [3, 7] }, 
+        { id: 7, x: cx + wOff*0.1, y: cy + hOff*0.6, owner: 1, troops: 2, defense: 0, links: [4, 6, 8] }, 
+        { id: 8, x: cx + wOff*0.9, y: cy + hOff*0.9, owner: 1, troops: 2, defense: 0, links: [5, 7] }  
     ];
     calculateReserves();
 }
@@ -107,21 +102,25 @@ function resolveCombat(attacker, defender) {
     }
 }
 
-// Unified Touch & Click Handler
-function getCoordinates(e) {
-    const rect = canvas.getBoundingClientRect();
-    if (e.touches && e.touches.length > 0) {
-        return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
-    }
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-}
+// ----------------------------------------------------------------
+// NEW UNIFIED TOUCH ENGINE (Fixes the dead clicks)
+// ----------------------------------------------------------------
+window.addEventListener('pointerdown', (e) => {
+    // Ignore clicks if they hit the UI buttons
+    if (e.target.tagName === 'BUTTON') return;
 
-function handleInput(e) {
     if (phase === 'AI_TURN' || phase === 'ANIMATING') return;
-    
-    const coords = getCoordinates(e);
+
+    // Get exact screen coordinates
+    const x = e.clientX; 
+    const y = e.clientY;
+
+    // Trigger visual sonar ping
+    visualTaps.push({ x: x, y: y, radius: 5, alpha: 1.0 });
+
     let clickedNode = null;
-    nodes.forEach(n => { if (Math.hypot(n.x - coords.x, n.y - coords.y) < 40) clickedNode = n; });
+    // Increased hit radius from 35 to 55 for easier tapping
+    nodes.forEach(n => { if (Math.hypot(n.x - x, n.y - y) < 55) clickedNode = n; });
 
     if (!clickedNode) { selectedNode = null; return; }
 
@@ -152,11 +151,9 @@ function handleInput(e) {
         }
     }
     checkWinCondition();
-}
+});
 
-canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput(e); }, {passive: false});
-canvas.addEventListener('mousedown', handleInput);
-
+// UI Button Listeners
 actionBtn.addEventListener('click', () => {
     if (phase === 'ATTACK' || phase === 'TECH') {
         selectedNode = null; phase = 'AI_TURN'; updateUI();
@@ -170,6 +167,7 @@ techBtn.addEventListener('click', () => {
     updateUI();
 });
 
+// --- RENDER ENGINE ---
 function drawHexagon(x, y, size, color, isFilled) {
     ctx.beginPath();
     for (let i = 0; i < 6; i++) {
@@ -208,13 +206,9 @@ function drawTacticalIcon(x, y, troops, color, isMoving = false) {
 }
 
 function render() {
-    ctx.clearRect(0, 0, width, height); // Map is handled by CSS underneath now
+    ctx.clearRect(0, 0, width, height);
 
-    radarAngle += 0.01;
-    ctx.save(); ctx.translate(width/2, height/2); ctx.rotate(radarAngle);
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0, Math.max(width,height), 0, 0.2);
-    ctx.fillStyle = 'rgba(0, 212, 255, 0.03)'; ctx.fill(); ctx.restore();
-
+    // Draw Links
     nodes.forEach(n => {
         n.links.forEach(targetId => {
             let target = nodes.find(t => t.id === targetId);
@@ -223,6 +217,7 @@ function render() {
         });
     });
 
+    // Draw Nodes
     nodes.forEach(n => {
         let color = n.owner === 0 ? COLOR_PLAYER : COLOR_ENEMY;
         
@@ -241,6 +236,7 @@ function render() {
         drawTacticalIcon(n.x, n.y, n.troops, color, false);
     });
 
+    // Draw Active Animations
     for (let i = activeStrikes.length - 1; i >= 0; i--) {
         let strike = activeStrikes[i];
         strike.progress += strike.speed;
@@ -259,6 +255,16 @@ function render() {
             ctx.shadowBlur = 0;
         }
     }
+
+    // Draw Sonar Taps (Visual Debugging)
+    for (let i = visualTaps.length - 1; i >= 0; i--) {
+        let t = visualTaps[i];
+        ctx.beginPath(); ctx.arc(t.x, t.y, t.radius, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(0, 212, 255, ${t.alpha})`; ctx.lineWidth = 2; ctx.stroke();
+        t.radius += 1.5; t.alpha -= 0.04;
+        if (t.alpha <= 0) visualTaps.splice(i, 1);
+    }
+
     requestAnimationFrame(render);
 }
 
@@ -306,7 +312,6 @@ function executeAITurn() {
     if (!hasAttacked) {
         phase = 'DEPLOY'; calculateReserves();
     } else {
-        // AI animation will switch it back to deploy when finished
         activeStrikes[0].returnPhase = 'DEPLOY';
         setTimeout(calculateReserves, 1000); 
     }
