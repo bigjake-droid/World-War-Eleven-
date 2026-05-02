@@ -3,43 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VINDEX: Tactical Command</title>
-    <link rel="stylesheet" href="style.css?v=tactical4">
+    <title>VINDEX // COMMAND HUB</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background-color: #020304; color: #8c9b9d;
+            font-family: 'Courier New', Courier, monospace;
+            padding: 20px; display: flex; align-items: center; justify-content: center;
+            height: 100vh; overflow: hidden;
+            background: radial-gradient(circle at center, #0a1118 0%, #020304 100%);
+        }
+        body::after {
+            content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            z-index: 5; background-size: 100% 2px, 3px 100%; pointer-events: none;
+        }
+        .terminal-container {
+            border: 1px solid #4a6b8c; background: rgba(5, 10, 15, 0.85);
+            padding: 20px; width: 100%; max-width: 600px;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.1); z-index: 10;
+        }
+        .glitch-text { color: #00d4ff; font-size: 1.5rem; letter-spacing: 0.1rem; margin-bottom: 5px; text-shadow: 0 0 10px rgba(0,212,255,0.5); }
+        .operator-id { color: #d4af37; font-weight: bold; margin-bottom: 20px; border-bottom: 1px solid #4a6b8c; padding-bottom: 10px;}
+        .op-block { border-left: 3px solid #d32f2f; padding-left: 10px; margin-bottom: 20px; background: rgba(211, 47, 47, 0.05); }
+        .op-block p { margin-bottom: 5px; font-size: 0.85rem; }
+        .op-block strong { color: #fff; }
+    </style>
 </head>
 <body>
 
-    <div id="ui-layer">
-        <div class="header-info">
-            <div id="phase-display">PHASE: DEPLOY</div>
-            <div class="resource-block">
-                <span id="reinforcement-display">RESERVES: 3</span><br>
-                <span id="dpoint-display" style="color: #00d4ff;">D-POINTS: 0</span>
-            </div>
-        </div>
+    <div class="terminal-container">
+        <h1 class="glitch-text">VINDEX COMMAND CENTER</h1>
+        <p class="operator-id">OPERATOR: JAKE MANNING [USMC 06-10]</p>
         
-        <div id="controls-container">
-            <div id="tech-panel" class="hidden">
-                <p>SELECT FRIENDLY NODE TO UPGRADE:</p>
-                <p>[ 5 ] TURRET: +1 TO HIGH DIE</p>
-                <p>[ 15 ] AEGIS: +1 ALL DICE</p>
-                <p>[ 20 ] IRON DOME: PRE-EMPTIVE KILL</p>
+        <div class="data-panel">
+            <h3>>> ACTIVE OPERATIONS: CIVIL LITIGATION</h3>
+            <br>
+            <div class="op-block">
+                <p><strong>TARGET:</strong> VICTORY MOTORS & LAW ENFORCEMENT</p>
+                <p><strong>STATUS:</strong> MOTION TO DISMISS PENDING (KRENNING / JONES)</p>
+                <p><strong>LEVERAGE:</strong> $105,000+ ECONOMIC LOSS AS PRIOR PUNISHMENT</p>
+                <p><strong>ROE:</strong> NO GUILTY PLEAS. NO DV TAGS.</p>
             </div>
             
-            <div class="button-row">
-                <button id="tech-btn">> TECH TREE</button>
-                <button id="action-btn">> END PHASE</button>
+            <div class="op-block">
+                <p><strong>TARGET:</strong> TRESPASS INCIDENT (9/24)</p>
+                <p><strong>STATUS:</strong> SITUATIONAL CRISIS / MEDICAL NECESSITY</p>
+                <p><strong>RESOLUTION:</strong> RELEASED 10/1</p>
             </div>
         </div>
     </div>
 
-    <canvas id="gameCanvas"></canvas>
-
-    <div id="game-over" class="hidden">
-        <h1 id="end-title">NETWORK SECURED</h1>
-        <p id="end-desc">All hostile nodes purged.</p>
-        <button id="restart-btn">> REDEPLOY</button>
-    </div>
-
-    <script src="script.js?v=tactical4"></script>
 </body>
 </html>
